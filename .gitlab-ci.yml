@@ -1,0 +1,47 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "20"
+
+# Test TypeScript code
+test:typescript:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - npm install
+    - npm run build
+    - npm test
+  only:
+    changes:
+      - src/**/*
+      - "*.ts"
+
+# Build Docker image
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+  only:
+    - main
+  tags:
+    - docker
+
+# Deploy documentation
+pages:
+  stage: deploy
+  image: python:3.11
+  script:
+    - pip install mkdocs mkdocs-material
+    - mkdocs build -d public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
