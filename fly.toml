@@ -1,0 +1,97 @@
+# Fly.io configuration for GatekeeperNetwork
+#
+# Federated AI access control with 11 Laws of Sapience enforcement
+# Ed25519 signature-backed credential system
+#
+# Usage:
+#   1. Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
+#   2. Login: fly auth login
+#   3. Deploy: fly launch --config fly.toml
+#   4. Set signing key: fly secrets set ED25519_PRIVATE_KEY=your-key
+#   5. Access: https://gatekeeper-{org-id}.fly.dev
+
+app = "gatekeeper-network"
+primary_region = "ord" # Change to preferred region (ord=Chicago, iad=DC, lax=LA, etc.)
+
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[build]
+  image = "node:20-alpine"
+  [build.args]
+    NODE_ENV = "production"
+
+[env]
+  # API port
+  PORT = "8443"
+
+  # Federation protocol
+  FEDERATION_ENABLED = "true"
+  FEDERATION_PORT = "8444"
+
+  # Credential validation
+  SIGNATURE_ALGORITHM = "ed25519"
+  CREDENTIAL_MAX_AGE = "86400" # 24 hours
+
+  # 11 Laws enforcement
+  LAWS_ENFORCEMENT = "strict"
+
+# Persistent storage for federation state
+[[mounts]]
+  source = "gatekeeper_data"
+  destination = "/data"
+  initial_size = "5gb"
+
+# HTTP/HTTPS services for API
+[[services]]
+  http_checks = []
+  internal_port = 8443
+  protocol = "tcp"
+  script_checks = []
+
+  [services.concurrency]
+    hard_limit = 100
+    soft_limit = 80
+    type = "connections"
+
+  # HTTP → HTTPS redirect
+  [[services.ports]]
+    force_https = true
+    handlers = ["http"]
+    port = 80
+
+  # HTTPS endpoint
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  # Health check
+  [[services.tcp_checks]]
+    grace_period = "10s"
+    interval = "15s"
+    restart_limit = 0
+    timeout = "2s"
+
+# WebSocket service for federation
+[[services]]
+  internal_port = 8444
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["tls"]
+    port = 8444
+
+# Auto-scaling
+[scaling]
+  min_machines = 2  # High availability for access control
+  max_machines = 10
+
+# Metrics and monitoring
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+# Federation peer discovery
+[processes]
+  web = "node dist/server.js"
+  federation = "node dist/federation.js"
